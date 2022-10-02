@@ -4,16 +4,19 @@ export const name = 'Gmail'
 export const prefix = 'gm'
 
 // only works for HTML view
-export const domains = ['mail.google.com/mail/u/\\d+/h']
+export const domains = ['mail.google.com/mail/u/\\d+/h/\\w+/\\?&']
 
 const Pages: { [k: string]: string[][] } = {
   INBOX: [[''], ['ARCHIVE', 'SPAM', 'TRASH'], ['READ', 'UNREAD', 'STAR', 'UNSTAR', 'MUTE']],
+  THREAD_IN_INBOX: [['th=\\w+&v=c'], ['ARCHIVE', 'SPAM', 'TRASH'], ['READ', 'UNREAD', 'STAR', 'UNSTAR', 'MUTE']],
   STARRED: [['s=r'], ['UNSTAR', 'SPAM'], ['ARCHIVE', 'INBOX', 'READ', 'UNREAD', 'TRASH', 'MUTE']],
   SENT_MAIL: [['s=s'], [], ['INBOX', 'READ', 'UNREAD', 'STAR', 'UNSTAR', 'TRASH', 'MUTE']],
   DRAFTS: [['s=d'], ['DISCARD'], ['INBOX', 'READ', 'UNREAD', 'STAR', 'UNSTAR']],
   ALL_MAIL: [['s=a'], ['INBOX', 'SPAM', 'TRASH'], ['ARCHIVE', 'READ', 'UNREAD', 'STAR', 'UNSTAR']],
   SPAM: [['s=m'], ['PURGE', 'UNSPAM'], ['READ', 'UNREAD', 'STAR', 'UNSTAR']],
   TRASH: [['s=t'], ['PURGE', 'INBOX'], ['READ', 'UNREAD', 'STAR', 'UNSTAR', 'SPAM']],
+  SEARCH: [['s=q'], ['SPAM', 'TRASH'], ['ARCHIVE', 'READ', 'UNREAD', 'STAR', 'UNSTAR']],
+  THREAD_IN_SEARCH: [['th=', 's=q'], ['SPAM', 'TRASH'], ['ARCHIVE', 'READ', 'UNREAD', 'STAR', 'UNSTAR']],
   CONTACTS: [['v=cl'], ['COMPOSE_CONTACTS', 'DEL_CONTACTS']],
   COMPOSE_MAIL: [['cs=b&pv=tl&v=b']],
   SEARCH_OPTIONS: [['pv=tl&v=as']],
@@ -74,7 +77,19 @@ export const keys: SiteKey[]  = [
     callback: () => goAction('TOGGLE_STAR'),
   },
   {
-    alias: 'm',
+    alias: 'I', // shift+i
+    description: 'Mark as read.',
+    category: SurfingkeysUsage.MouseClick,
+    callback: () => goAction('READ'),
+  },
+  {
+    alias: 'U', // shift+u
+    description: 'Mark as unread.',
+    category: SurfingkeysUsage.MouseClick,
+    callback: () => goAction('UNREAD'),
+  },
+  {
+    alias: '_',
     description: 'Mute conversation.',
     category: SurfingkeysUsage.MouseClick,
     callback: () => goAction('MUTE'),
@@ -141,7 +156,7 @@ export const keys: SiteKey[]  = [
     callback: () => goTo('STARRED'),
   },
   {
-    alias: 'gQ',
+    alias: 'gS',
     description: 'Search with options.',
     category: SurfingkeysUsage.PageNav,
     callback: () => goTo('SEARCH_OPTIONS'),
@@ -230,16 +245,28 @@ export const keys: SiteKey[]  = [
 
   // Customize
   {
-    alias: 'x',
+    alias: 'a',
     description: 'Select a conversation.',
     category: SurfingkeysUsage.MouseClick,
     callback: createHints('form[name="f"] input[type="checkbox"]:not(:checked)'),
   },
   {
-    alias: 'X',
+    alias: 'A',
     description: 'Unselect a conversation.',
     category: SurfingkeysUsage.MouseClick,
     callback: createHints('form[name="f"] input[type="checkbox"]:checked'),
+  },
+  {
+    alias: '*I',
+    description: 'Select conversations in Inbox.',
+    category: SurfingkeysUsage.MouseClick,
+    callback: () => selectAll('LABEL_INBOX'),
+  },
+  {
+    alias: 'gl',
+    description: 'Open a conversation.',
+    category: SurfingkeysUsage.MouseClick,
+    callback: createHints('table.l td.lb a[href*="?s=l&l="]'),
   },
   {
     alias: 'o',
@@ -247,7 +274,62 @@ export const keys: SiteKey[]  = [
     category: SurfingkeysUsage.MouseClick,
     callback: createHints('form[name="f"] a[href*="?&th="]'),
   },
+  {
+    alias: 'ff',
+    description: 'Search by same sender.',
+    category: SurfingkeysUsage.MouseClick,
+    callback: createHints('form[name="f"] a[href*="?&th="]', (a) => {
+      const from = (mailListItem(a as HTMLElement)?.querySelector('td:nth-child(2)')?.textContent || '')
+        .replace(/\(\d+\)$/, '')
+        .trim()
+      from && search(`from:(${from})`)
+    }),
+  },
+  {
+    alias: 'fs',
+    description: 'Edit & search by subject.',
+    category: SurfingkeysUsage.MouseClick,
+    callback: createHints('form[name="f"] a[href*="?&th="]', (a) => {
+      api.Front.showEditor((a?.textContent || '').trim(), (s)  => {
+        s && search(`subject:(${s})`)
+      })
+    }),
+  },
+  {
+    alias: 'fe',
+    description: 'Edit & search by syntax, e.g. in:Inbox from:google',
+    category: SurfingkeysUsage.MouseClick,
+    callback: () => {
+      api.Front.showEditor('', (s)  => {
+        s.trim() && search(s)
+      })
+    },
+  },
 ]
+
+function search(q: string | { [k: string]: string | boolean }) {
+  let searchString = ''
+  if (typeof q == 'string') {
+    searchString = q
+  } else {
+    const searches = []
+    q.in && searches.push(`in:(${q.in})`)
+    q.from && searches.push(`from:(${q.from})`)
+    q.to && searches.push(`to:(${q.to})`)
+    q.subject && searches.push(`subject:(${q.subject})`)
+    q.search && searches.push(q.search)
+    q.not && searches.push(`-{${q.not}}`)
+    q.attachment && searches.push('has:attachment')
+    searchString = searches.join(' ')
+  }
+  if (searchString.trim()) {
+    // window.location.search = `s=q&q=${encodeURIComponent(searchString)}&nvp_site_mail=Search%20Mail`
+    const searchInput = document.querySelector('input#sbq')
+    const searchButton = document.querySelector('input[name="nvp_site_mail"]')
+    searchInput && ((searchInput as HTMLInputElement).value = searchString)
+    searchButton && (searchButton as HTMLInputElement).click()
+  }
+}
 
 function goTo(t: string) {
   t in Pages && window.location.replace(`?&${Pages[t][0][0]}`)
@@ -279,28 +361,34 @@ function selectAll(action = 'SELECT', checkboxes?: NodeListOf<HTMLInputElement>)
     case 'UNSTARRED':
       checkboxes.forEach(c => { c.checked = !starredItem(c) })
       break
+    case 'LABEL_INBOX':
+      checkboxes.forEach(c => { c.checked = labeledItem(c, 'Inbox') })
+      break
   }
 }
 
-function unreadItem(elem: HTMLElement | null) {
+function mailListItem(elem: HTMLElement | null): HTMLElement | null {
   while (elem) {
-    if (elem.tagName.toLowerCase() == 'tr') {
-      const bgColor = elem.getAttribute('bgcolor')
-      return bgColor && bgColor.toLowerCase() == __colors.unread ? true : false
+    if (elem.tagName.toLocaleLowerCase() == 'tr') {
+      return elem
     }
     elem = elem.parentElement
   }
-  return false
+  return elem
 }
 
-function starredItem(elem: HTMLElement | null) {
-  while (elem) {
-    if (elem.tagName.toLowerCase() == 'tr') {
-      return elem.querySelector('img[alt="Starred"]') != null
-    }
-    elem = elem.parentElement
-  }
-  return false
+function unreadItem(elem: HTMLElement | null): boolean {
+  return !!(mailListItem(elem)?.getAttribute('bgcolor')?.toLowerCase() == __colors.unread)
+}
+
+function starredItem(elem: HTMLElement | null): boolean {
+  return !!(mailListItem(elem)?.querySelector('img[alt="Starred"]'))
+}
+
+function labeledItem(elem: HTMLElement | null, label: string): boolean {
+  const innerHtml = mailListItem(elem)?.querySelector('span.ts')?.innerHTML || ''
+  const reLabel = new RegExp(`<font color="#006633">${label}</font>`, 'i')
+  return reLabel.test(innerHtml)
 }
 
 function getActionBar() {

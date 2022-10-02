@@ -38,7 +38,7 @@ export const keys: SiteKey[] = [
     category: SurfingkeysUsage.MouseClick,
     description: 'Open link URL in vim editor',
     callback: createHints('a[href]', (a) => {
-      const h = a && a.getAttribute('href') || ''
+      const h = a?.getAttribute('href') || ''
       api.Front.showEditor(h, (url) => { newOpenLink(url)(), 'url' }, 'url')
     }),
   },
