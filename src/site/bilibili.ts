@@ -10,13 +10,13 @@ export const keys: SiteKey[] = [
     alias: 'f',
     description: 'Toggle video windowed fullscreen.',
     category: SurfingkeysUsage.Misc,
-    callback: newClickElement('.bilibili-player-video-btn.bilibili-player-video-web-fullscreen'),
+    callback: newClickElement('.bpx-player-ctrl-btn.bpx-player-ctrl-web'),
   },
   {
     alias: 'F',
     description: 'Toggle video fullscreen.',
     category: SurfingkeysUsage.Misc,
-    callback: newClickElement('.bilibili-player-video-btn.bilibili-player-video-btn-fullscreen'),
+    callback: newClickElement('.bpx-player-ctrl-btn.bpx-player-ctrl-full"'),
   },
   {
     alias: 'l',
